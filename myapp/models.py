@@ -4,7 +4,7 @@ from django.db import models
 class Teacher(models.Model):
     name = models.CharField(max_length = 30)
     surname = models.CharField(max_length = 40)
-    
+    schedule = models.OneToOneField('WeeklySchedule', on_delete = models.DO_NOTHING, related_name = 'relation')
 
     def __str__(self):
         return self.surname
@@ -29,7 +29,7 @@ class Student(models.Model):
 
 class Class(models.Model):
     name = models.CharField(max_length = 30, unique = True)
-    schedule = models.OneToOneField('WeeklySchedule', on_delete = models.DO_NOTHING, related_name = 'related_class')
+    schedule = models.OneToOneField('WeeklySchedule', on_delete = models.DO_NOTHING, related_name = 'relation')
 
     def __str__(self):
         return self.name
