@@ -1,5 +1,5 @@
 import django_setup
-from myapp.models import Teacher, Subject, Student, Class, WeeklySchedule, DailySchedule
+from myapp.models import Teacher, Subject, Student, Class, WeeklySchedule, DailySchedule, Note
 from rich.console import Console
 from rich.table import Table
 
@@ -43,23 +43,37 @@ def add_subject(name, teacher_name):
 def get_students_in_class(class_name):
     return Student.objects.filter(student_class = get_class_by_name(class_name)).all()
 
-def add_teacher(name, surname, subjects:list|tuple):
+def add_teacher(name, surname, subject_names:list|tuple):
+    days = []
+    
+    for i in range(5):
+        days.append(DailySchedule())
+
+    schedule = WeeklySchedule(
+            monday = days[0],
+            tuesday = days[1],
+            wednesday = days[2],
+            thursday = days[3],
+            friday = days[4] 
+        )
+    
     teacher = Teacher(
         name = name,
         surname = surname,
-        schedule = WeeklySchedule(
-            monday = DailySchedule().save(),
-            tuesday = DailySchedule().save(),
-            wednesday = DailySchedule().save(),
-            thursday = DailySchedule().save(),
-            friday = DailySchedule().save() 
-        ).save()
+        schedule = schedule
     )
-
+    for i in days:
+        i.save()
+    schedule.save()
     teacher.save()
-
-    for subject_name in subjects:
-        Subject.create(name = subject_name, teacher = teacher)
+    subjects = [item.name for item in Subject.objects.all()]
+    for item in subject_names:
+        if item not in subjects:
+            subject = Subject.objects.create(name = item)
+            subject.teacher.add(teacher)
+        else:
+            subject = get_subject_by_name(name = item)
+            subject.teacher.add(teacher)
     
 def get_subject_by_name(name):
     if Subject.objects.get(name = name):
@@ -226,7 +240,27 @@ def see_teachers_schedule(name, surname):
         table.add_row(row)
 
     Console().print(table)
+
+def give_note(subject_name, student_name, student_surname, note):
+    student = get_student_by_name(student_name, student_surname)
+    subject = get_subject_by_name(subject_name)
+
+    Note.objects.create(note = note, student = student, subject = subject)
+
+def get_notes_of_student(name, surname):
+    table = Table(title=str(name, surname))
+
+    table.add_column('subject')
+    table.add_column('note')
     
+    student = get_student_by_name(name, surname)
+    for note in student.note:
+        subject = note.subject
+        note = note.note
+        table.add_tow(['subject', 'note'])
+    
+    Console().print(table)
+
 
 #------------------------------------------------------------------------------------
 
@@ -239,8 +273,13 @@ Pick one of the following actions
 3. Manage schedule
 4. See info about classes 
 5. See info about teachers
-4. exit 
+6. Give a note to a student 
+7. See students notes
+8. create a class
+9. add a subject
+0. exit 
 '''
+
 person = None
 
 while run:
@@ -259,12 +298,29 @@ while run:
         surname = input('enter your surname:')
 
         print(get_classes_info())
-        subjects = input('What subjects do you teach?:').split(', ')
-        add_teacher(name, surname, class_name)
+        subjects = input('What subjects do you teach?(subject1, subject2, subject3):').split(', ')
+        add_teacher(name, surname, subjects)
     elif answer == 3:
             manage_schedule_of_class()
     elif answer == 4:
+        print(get_classes_info())
+    elif answer == 5:
+        get_teachers_info()
+    elif answer == 6:
+        students_name = input('enter the students name:')
+        students_surname = input('enter the students surname:')
+        subject_name = input('enter the subjects name:')
+        note = int(input('enter the note:'))
+        give_note(students_name, students_surname, subject_name, note)
+    elif answer == 7:
+        name = input('input students name:')
+        surname = input('input students surname:')
+        get_notes_of_student(name, surname)
+    elif answer == 8:
+        grade = input('Enter classes grade:')
+        letter = input('Enter classes identifier(A-Z):')
+        add_class(grade+letter)
+    elif answer == 0:
         run = False
     else:
         print('please, enter the number from 1 to 4')
-
