@@ -122,8 +122,18 @@ def get_classes_plan(class_name):
     return WeeklySchedule.objects.get(related_class = classs.id)
 
 def get_teachers_plan(subject_name):
-    teacher = get_subject_by_name(subject_name).teacher
-    return teacher
+    teachers = Subject.objects.get(name = subject_name).teacher.all()
+    if len(teachers) == 0:
+        print(f'there is no subject named {subject_name} or no one wants to deal with it')
+    elif len(teachers) > 1:
+        print('there are multiple teachers teaching this lesson. Which one do you want to get busy?')
+        for teacher in teachers:
+            print(f'1. {teacher.name, teacher.surname}')
+        name, surname = input('enter name and surname (name surname)').split()
+        return get_teacher_by_name(name, surname)
+    elif len(teachers) == 1:
+        name, surname = teacher[0].name, teacher[1].surname
+        return get_teacher_by_name(name, surname)
 
 def get_class_by_student(name, surname):
     student = Student.objects.get(name = name, surname = surname)
@@ -132,17 +142,15 @@ def get_class_by_student(name, surname):
 def see_teachers_info():
     table = Table()
 
-    columns = ["№", 'name', 'surname']
+    columns = ["№", 'name', 'surname', 'subjects']
     for column in columns:
         table.add_column(column)
 
     teachers = Teacher.objects.all()
 
-    for teacher in teachers:
-        row = []
-        for i in teacher:
-            row.append(i)
-        table.add_row(*row)
+    for num, teacher in enumerate(teachers, 2):
+        subjects = ', '.join([subject.name for subject in teacher.subjects.all()])
+        table.add_row(str(num), teacher.name, teacher.surname, subjects)
     
     Console().print(table)
 
@@ -165,33 +173,46 @@ def add_lesson_to_plan(class_name, day, lesson_number, subject):
     teachers_plan = get_teachers_plan(subject)
     if day == 'monday':
         day = classes_plan.monday
+        day2 = teachers_plan.monday
     elif day == 'tuesday':
         day = classes_plan.tuesday
+        day2 = teachers_plan.tuesday
     elif day == 'wednesday':
         day = classes_plan.wednesday
+        day2 = teachers_plan.wednesday
     elif day == 'thirsday':
         day = classes_plan.thursday
+        day2 = teachers_plan.tuesday
     elif day == 'friday':
         day = classes_plan.friday
+        day2 = teachers_plan.tuesday
 
     subject = get_subject_by_name(subject)
     lesson_number = int(lesson_number)
 
     if lesson_number == 1:
         day.first_lesson = subject
+        day2.first_lesson = subject
     elif lesson_number == 2:
         day.second_lesson = subject
+        day2.second_lesson = subject
     elif lesson_number == 3:
         day.third_lesson = subject
+        day2.third_lesson = subject
     elif lesson_number == 4:
         day.fourth_lesson = subject
+        day2.fourth_lesson = subject
     elif lesson_number == 5:
         day.fifth_lesson = subject
+        day2.fifth_lesson = subject
     elif lesson_number == 6:
         day.sixth_lesson = subject
+        day2.sixth_lesson = subject
     elif lesson_number == 7:
         day.seventh_lesson = subject
+        day2.seventh_lesson = subject
     day.save()
+    day2.save()
 
 
 def see_classes_plan(class_name):
@@ -203,8 +224,7 @@ def see_classes_plan(class_name):
 
     week = WeeklySchedule.objects.get(related_class = get_class_by_name(class_name).id).as_list()
     for row_num in range(1, 8):
-        row = []
-        row.append(str(row_num))
+        row = [str(row_num)]
         for day in week:
             for lesson_num, lesson in enumerate(day.as_list(), 1):
                 if lesson_num == row_num:
@@ -230,20 +250,20 @@ def manage_schedule_of_class():
 
     add_lesson_to_plan(class_name, day, lesson, subject)
 
-def see_teachers_schedule(name, surname):
+def see_teachers_plan(name, surname):
     teacher = get_teacher_by_name(name, surname)
 
 
-    table = Table(title=class_name)
+    table = Table(title=name+' '+surname)
     columns = ['№', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday']
 
     for column in columns:
         table.add_column(column)
 
 
-    week = WeeklySchedule.objects.get(relation = teacher.schedule).as_list()
+    week = WeeklySchedule.objects.get(related_teacher = teacher.schedule).as_list()
     for row_num in range(1, 8):
-        row = []
+        row = [str(row_num)]
         for day in week:
             for lesson_num, lesson in enumerate(day.as_list(), 1):
                 if lesson_num == row_num:
@@ -298,16 +318,16 @@ while run:
     print(question)
     answer = int(input('Enter a number:'))
     if answer == 1:
-        name = input('enter your name:')
-        surname = input('enter your surname:')
+        name = input('enter students name:')
+        surname = input('enter students surname:')
 
         print(get_classes_info())
         class_name= input('what class would you like to be in?:')
         add_student(name, surname, class_name)
 
     elif answer == 2:
-        name = input('enter your name:')
-        surname = input('enter your surname:')
+        name = input('enter teachers name:')
+        surname = input('enter teachers surname:')
 
         print(get_classes_info())
         subjects = input('What subjects do you teach?(subject1, subject2, subject3):').split(', ')
@@ -339,6 +359,11 @@ while run:
         classes_info()
         class_name = input('enter classes name')
         see_classes_plan(class_name)
+    elif answer == 11:
+        see_teachers_info()
+        name = input('enter name:')
+        surname = input('enter surname:')
+        see_teachers_plan(name, surname)
     elif answer == 0:
         run = False
     else:
