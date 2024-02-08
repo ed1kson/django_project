@@ -4,17 +4,24 @@ from rich.console import Console
 from rich.table import Table
 
 def add_class(name):
-    default = get_subject_by_name("no lesson")
-    plan = WeeklySchedule(
-        monday = DailySchedule(default).save(),
-        tuesday = DailySchedule(default).save(),
-        wednesday = DailySchedule(default).save(),
-        thursday = DailySchedule(default).save(),
-        friday = DailySchedule(default).save()
-    )
-    the_class = Class(name = name, schedule = plan)
+    days = []
 
-    plan.save()
+    for i in range(5):
+        days.append(DailySchedule())
+    
+    week = WeeklySchedule(
+        monday = days[0],
+        tuesday = days[1],
+        wednesday = days[2],
+        thursday = days[3],
+        friday = days[4]
+    )
+
+    the_class = Class(name = name, schedule = week)
+    for day in days:
+        day.save()
+
+    week.save()
     the_class.save()
 
 def get_class_by_name(name):
@@ -27,18 +34,25 @@ def add_student(name, surname, the_class):
         student_class = get_class_by_name(the_class)
     ).save()
 
-def get_teacher_by_name(name):
-    return Teacher.objects.get(name = name)
+def get_teacher_by_name(name, surname):
+    return Teacher.objects.get(name = name, surname = surname)
 
 def get_student_by_name(name, surname):
-    return Student.objects.get(name, surname)
+    return Student.objects.get(name = name, surname = surname)
 
-def add_subject(name, teacher_name):
+def add_subject(name):
     if not Subject.objects.get(name = name):
-        Subject(
+        subject = Subject(
             name = name,
-            teacher = get_teacher_by_name(teacher_name)
-        ).save()
+        )
+        subject.save()
+        print(get_teachers_info())
+        name, surname = (input("teacher?(leave it empty if no):")).split()
+        if answer != '':
+            teacher = get_teacher_by_name(name, surname)
+            subject.teacher.add(teacher)
+    else:
+        print('already exists')
 
 def get_students_in_class(class_name):
     return Student.objects.filter(student_class = get_class_by_name(class_name)).all()
@@ -81,8 +95,7 @@ def get_subject_by_name(name):
     else:
         answer = input('Subjects with such a name does not exist yet. Do you want to add a new one? the current subject will be replaced with a free lesson(yes/no):')
         if answer == 'yes':
-            teacher = input('enter the teacher name')
-            add_subject(name, teacher)
+            add_subject()
         else:
             return Subject.objects.get(name = 'no lesson')
 
@@ -90,7 +103,10 @@ def find_teacher_by_subject(subject_name):
     return Teacher.objects.get(id = get_subject_by_name(subject_name).id)
 
 def get_teachers_info():
-    return Teacher.objects.all()
+    teachers = Teacher.objects.all()
+    for i in teachers:
+        sbs = ', '.join([subject.name for subject in i.subjects.all()])
+        print(f'1. {i.name} {i.surname}, teaches: {sbs}')
 
 def get_subjects_of_teacher(teachers_id):
     return Subject.objects.filter(teacher = teachers_id).all()
@@ -106,7 +122,7 @@ def get_classes_plan(class_name):
     return WeeklySchedule.objects.get(related_class = classs.id)
 
 def get_teachers_plan(subject_name):
-    teacher = Teacher.objects.get(id = get_subject_by_name(subject_name).teacher)
+    teacher = get_subject_by_name(subject_name).teacher
     return teacher
 
 def get_class_by_student(name, surname):
@@ -126,7 +142,7 @@ def see_teachers_info():
         row = []
         for i in teacher:
             row.append(i)
-        table.add_row(row)
+        table.add_row(*row)
     
     Console().print(table)
 
@@ -140,17 +156,13 @@ def classes_info():
     classes = Class.objects.all()
 
     for num, item in enumerate(classes, 1):
-        
-        row = [num, item.name, len(item.students)]
-
-        table.add_row(row)
+        table.add_row(str(num), item.name, str(len(item.students.all())))
     
     Console().print(table)
 
 def add_lesson_to_plan(class_name, day, lesson_number, subject):
     classes_plan = get_classes_plan(class_name)
     teachers_plan = get_teachers_plan(subject)
-
     if day == 'monday':
         day = classes_plan.monday
     elif day == 'tuesday':
@@ -163,6 +175,7 @@ def add_lesson_to_plan(class_name, day, lesson_number, subject):
         day = classes_plan.friday
 
     subject = get_subject_by_name(subject)
+    lesson_number = int(lesson_number)
 
     if lesson_number == 1:
         day.first_lesson = subject
@@ -178,10 +191,8 @@ def add_lesson_to_plan(class_name, day, lesson_number, subject):
         day.sixth_lesson = subject
     elif lesson_number == 7:
         day.seventh_lesson = subject
+    day.save()
 
-def func(day):
-    for lesson in day:
-        yield lesson
 
 def see_classes_plan(class_name):
     table = Table(title=class_name)
@@ -190,14 +201,15 @@ def see_classes_plan(class_name):
         table.add_column(column)
 
 
-    week = WeeklySchedule.objects.get(relation = get_class_by_name(class_name).id)
-    for row_num in range(7):
+    week = WeeklySchedule.objects.get(related_class = get_class_by_name(class_name).id).as_list()
+    for row_num in range(1, 8):
         row = []
+        row.append(str(row_num))
         for day in week:
-            for lesson_num, lesson in enumerate(day, 1):
+            for lesson_num, lesson in enumerate(day.as_list(), 1):
                 if lesson_num == row_num:
                     row.append(lesson.name)
-        table.add_row(row)
+        table.add_row(*row)
 
     Console().print(table)
 
@@ -229,35 +241,35 @@ def see_teachers_schedule(name, surname):
         table.add_column(column)
 
 
-    week = WeeklySchedule.objects.get(relation = teacher.schedule)
-    for row_num in range(7):
+    week = WeeklySchedule.objects.get(relation = teacher.schedule).as_list()
+    for row_num in range(1, 8):
         row = []
         for day in week:
-            for lesson_num, lesson in enumerate(day, 1):
+            for lesson_num, lesson in enumerate(day.as_list(), 1):
                 if lesson_num == row_num:
                     row.append(lesson.name)
                     break
-        table.add_row(row)
+        table.add_row(*row)
 
     Console().print(table)
 
-def give_note(subject_name, student_name, student_surname, note):
+def give_note(student_name, student_surname, subject_name, note):
     student = get_student_by_name(student_name, student_surname)
     subject = get_subject_by_name(subject_name)
 
     Note.objects.create(note = note, student = student, subject = subject)
 
 def get_notes_of_student(name, surname):
-    table = Table(title=str(name, surname))
+    table = Table(title=' '.join([name, surname]))
 
     table.add_column('subject')
     table.add_column('note')
     
     student = get_student_by_name(name, surname)
-    for note in student.note:
-        subject = note.subject
-        note = note.note
-        table.add_tow(['subject', 'note'])
+    for note in student.notes.all():
+        subject = str(note.subject)
+        note = str(note.note)
+        table.add_row(subject, note)
     
     Console().print(table)
 
@@ -266,7 +278,6 @@ def get_notes_of_student(name, surname):
 
 run = True
 question = '''
-Welcome to our school!
 Pick one of the following actions
 1. Add a student
 2. Add a teacher 
@@ -277,6 +288,7 @@ Pick one of the following actions
 7. See students notes
 8. create a class
 9. add a subject
+10. see classes plan
 0. exit 
 '''
 
@@ -303,7 +315,7 @@ while run:
     elif answer == 3:
             manage_schedule_of_class()
     elif answer == 4:
-        print(get_classes_info())
+        classes_info()
     elif answer == 5:
         get_teachers_info()
     elif answer == 6:
@@ -320,6 +332,13 @@ while run:
         grade = input('Enter classes grade:')
         letter = input('Enter classes identifier(A-Z):')
         add_class(grade+letter)
+    elif answer == 9:
+        surname
+        add_subject()
+    elif answer == 10:
+        classes_info()
+        class_name = input('enter classes name')
+        see_classes_plan(class_name)
     elif answer == 0:
         run = False
     else:
